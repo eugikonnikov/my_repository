@@ -115,7 +115,7 @@ async def respond(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # Основная функция
 async def main() -> None:
     # Токен вашего бота
-    token = '7492567980:AAHrT2HbDCaFCEDa0p6qGDWeO3HUmg2um74'
+    token = '7244231240:AAF058JkWuJPYtjIUySSIT3swUE8Dt_u_bE'
 
     # Создаем приложение и передаем ему токен вашего бота
     application = ApplicationBuilder().token(token).build()
