@@ -1,5 +1,5 @@
 import logging
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -21,6 +21,15 @@ users = {}
 active_chats = {}
 message_replies = {}
 
+# Функция для главного меню
+async def show_menu(update: Update):
+    menu_keyboard = [
+        [KeyboardButton("/list"), KeyboardButton("/choose_user")],
+        [KeyboardButton("/close")],
+    ]
+    reply_markup = ReplyKeyboardMarkup(menu_keyboard, resize_keyboard=True)
+    await update.message.reply_text("Выберите действие:", reply_markup=reply_markup)
+
 # Команда /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Получено сообщение: {update.message.text} от {update.effective_user.id}")
@@ -35,11 +44,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"Повторная авторизация пользователя: {username} (ID: {user_id})")
         await update.message.reply_text("Вы уже авторизованы!")
 
-    await update.message.reply_text("Теперь вы можете выбрать пользователя для отправки сообщения.")
+    await show_menu(update)
 
 # Команда для выбора пользователя из списка
 async def choose_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+
+    if user_id in active_chats:
+        receiver_id = active_chats[user_id]
+        await update.message.reply_text(
+            f"Вы уже связаны с пользователем {users[receiver_id]}. Продолжайте общение!"
+        )
+        return
 
     if not users:
         await update.message.reply_text("Нет других пользователей для общения.")
@@ -69,26 +85,55 @@ async def handle_user_selection(update: Update, context: ContextTypes.DEFAULT_TY
     sender_id = query.from_user.id
     receiver_id = int(query.data)
 
+    # Устанавливаем связь между пользователями
     active_chats[sender_id] = receiver_id
+    active_chats[receiver_id] = sender_id  # Двусторонний чат
 
     await query.edit_message_text(
-        text=f"Вы выбрали отправку сообщения пользователю {users[receiver_id]}! Теперь напишите ваше сообщение."
+        text=f"Вы выбрали пользователя {users[receiver_id]} для общения! Теперь напишите ваше сообщение."
     )
-    logger.info(f"Пользователь {sender_id} выбрал собеседника {receiver_id}.")
+    logger.info(f"Создан анонимный чат: {sender_id} ↔ {receiver_id}.")
+
+# Команда /list для просмотра списка пользователей
+async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not users:
+        await update.message.reply_text("Список пользователей пуст.")
+        logger.info("Команда /list вызвана, но список пользователей пуст.")
+        return
+
+    user_list = "\n".join(f"{username} (ID: {user_id})" for user_id, username in users.items())
+    await update.message.reply_text(f"Список пользователей:\n{user_list}")
+    logger.info("Список пользователей отправлен.")
+
+# Команда /close для закрытия чата
+async def close_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    if user_id in active_chats:
+        partner_id = active_chats.pop(user_id)
+        active_chats.pop(partner_id, None)  # Удаляем связь у партнера
+        await update.message.reply_text("Чат закрыт. Вы вернулись в главное меню.")
+        logger.info(f"Пользователь {user_id} закрыл чат с пользователем {partner_id}.")
+    else:
+        await update.message.reply_text("У вас нет активного чата.")
+
+    await show_menu(update)
 
 # Обработка текстовых сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sender_id = update.effective_user.id
+    message = update.message.text
 
     if sender_id not in active_chats:
-        await update.message.reply_text("Сначала выберите пользователя для общения командой /choose_user.")
+        await update.message.reply_text(
+            "Вы еще не выбрали получателя. Сначала выберите пользователя для общения командой /choose_user."
+        )
         logger.warning(f"Пользователь {sender_id} отправил сообщение без выбора собеседника.")
         return
 
     receiver_id = active_chats[sender_id]
-    message = update.message.text
 
-    # Отправляем сообщение пользователю, с пометкой "от тайного Санты"
+    # Отправляем сообщение получателю
     await context.bot.send_message(
         chat_id=receiver_id,
         text=f"Вам письмо от тайного Санты: \n{message}"
@@ -96,14 +141,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Сообщение от пользователя {sender_id} отправлено пользователю {receiver_id}. Текст: {message}")
 
     # Сохраняем ID сообщения, чтобы отслеживать, кто кому ответил
-    message_replies[receiver_id] = sender_id  # Получатель становится отправителем в следующем чате
+    message_replies[receiver_id] = sender_id
     await update.message.reply_text("Ваше сообщение отправлено!")
 
-# Обработка ответа от пользователя (пересылаем его обратно отправителю)
+# Обработка ответа от пользователя
 async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sender_id = update.effective_user.id
 
-    # Проверяем, кому нужно отправить ответ
     if sender_id not in message_replies:
         await update.message.reply_text("Никто не ждет ответа от вас.")
         logger.warning(f"Пользователь {sender_id} попытался ответить, но активного чата нет.")
@@ -112,7 +156,7 @@ async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     receiver_id = message_replies[sender_id]
     message = update.message.text
 
-    # Отправляем ответ обратно тому, кто отправил оригинальное сообщение
+    # Отправляем ответ обратно отправителю
     await context.bot.send_message(
         chat_id=receiver_id,
         text=f"Ваш подопечный ответил: \n{message}"
@@ -121,29 +165,16 @@ async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("Ваш ответ отправлен!")
 
-# Команда /list для отображения списка пользователей
-async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-
-    if not users:
-        await update.message.reply_text("Пока никто не авторизовался.")
-        logger.info(f"Пользователь {user_id} запросил список, но он пуст.")
-        return
-
-    # Создаем список пользователей
-    user_list = "\n".join([f"{username} (ID: {uid})" for uid, username in users.items()])
-    await update.message.reply_text(f"Список авторизовавшихся пользователей:\n{user_list}")
-    logger.info(f"Пользователь {user_id} запросил список пользователей. Отправлен список: {user_list}")
-
 # Основная функция
 def main():
     # Создаем объект Application
-    application = Application.builder().token("7244231240:AAF058JkWuJPYtjIUySSIT3swUE8Dt_u_bE").build()
+    application = Application.builder().token("YOUR_BOT_TOKEN").build()
 
     # Регистрируем обработчики
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("choose_user", choose_user))
-    application.add_handler(CommandHandler("list", list_users))  # Добавлен обработчик для /list
+    application.add_handler(CommandHandler("list", list_users))
+    application.add_handler(CommandHandler("close", close_chat))
     application.add_handler(CallbackQueryHandler(handle_user_selection))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(MessageHandler(filters.REPLY & ~filters.COMMAND, handle_reply))
