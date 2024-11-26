@@ -90,13 +90,13 @@ async def handle_user_selection(update: Update, context: ContextTypes.DEFAULT_TY
     sender_id = query.from_user.id
     receiver_id = int(query.data)
 
+    # Сохраняем информацию о выбранном собеседнике для последующей отправки сообщений
+    message_replies[sender_id] = receiver_id
+
     await query.edit_message_text(
         text=f"Вы выбрали пользователя {users[receiver_id]}! Напишите сообщение для отправки."
     )
     logger.info(f"Пользователь {sender_id} выбрал собеседника {receiver_id}.")
-
-    # Сохраняем информацию о выбранном собеседнике для последующей отправки сообщений
-    message_replies[sender_id] = receiver_id
 
 # Обработка текстовых сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
