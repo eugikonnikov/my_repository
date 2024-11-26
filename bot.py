@@ -23,7 +23,7 @@ message_replies = {}
 # Функция для главного меню
 async def show_menu(update: Update):
     menu_keyboard = [
-        [KeyboardButton("🟩 /choose_user")],
+        [KeyboardButton("Список участников"), KeyboardButton("Выбрать адресата")]
     ]
     
     reply_markup = ReplyKeyboardMarkup(menu_keyboard, resize_keyboard=True)
