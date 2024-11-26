@@ -168,7 +168,7 @@ async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Основная функция
 def main():
     # Создаем объект Application
-    application = Application.builder().token("YOUR_BOT_TOKEN").build()
+    application = Application.builder().token("7244231240:AAF058JkWuJPYtjIUySSIT3swUE8Dt_u_bE").build()
 
     # Регистрируем обработчики
     application.add_handler(CommandHandler("start", start))
