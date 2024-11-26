@@ -131,37 +131,4 @@ async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Проверяем, кому нужно отправить ответ
     if sender_id not in message_replies:
-        await update.message.reply_text("Никто не ждет вашего ответа.")
-        logger.warning(f"Пользователь {sender_id} попытался ответить, но нет активного письма.")
-        return
-
-    receiver_id = message_replies[sender_id]
-
-    # Отправляем ответ обратно отправителю
-    await context.bot.send_message(
-        chat_id=receiver_id,
-        text=f"Вам пришел ответ от Тайного Санты: \n{message}"
-    )
-    logger.info(f"Ответ от пользователя {sender_id} отправлен пользователю {receiver_id}. Текст: {message}")
-
-    await update.message.reply_text("Ваш ответ отправлен!")
-
-# Основная функция
-def main():
-    # Создаем объект Application
-    application = Application.builder().token("7244231240:AAF058JkWuJPYtjIUySSIT3swUE8Dt_u_bE").build()
-
-    # Регистрируем обработчики
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("choose_user", choose_user))
-    application.add_handler(CommandHandler("list", list_users))
-    application.add_handler(CallbackQueryHandler(handle_user_selection))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    application.add_handler(MessageHandler(filters.REPLY & ~filters.COMMAND, handle_reply))
-
-    logger.info("Бот запущен и готов к работе.")
-    # Запуск бота
-    application.run_polling()
-
-if __name__ == "__main__":
-    main()
+        await update.message.reply_t
