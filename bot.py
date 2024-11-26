@@ -60,11 +60,13 @@ async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def choose_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
-    if not users or len(users) < 2:
+    # Проверка на наличие других пользователей
+    if len(users) < 2:
         await update.message.reply_text("Список участников пуст.")
         logger.info(f"Пользователь {user_id} попытался выбрать собеседника, но список пуст.")
         return
 
+    # Создаем список кнопок для выбора собеседников
     keyboard = [
         [InlineKeyboardButton(username, callback_data=str(target_id))]
         for target_id, username in users.items()
