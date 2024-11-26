@@ -45,12 +45,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await show_menu(update)
 
+# Команда для отображения списка пользователей
+async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    if not users:
+        await update.message.reply_text("Пока нет пользователей.")
+        return
+
+    user_list = "\n".join([f"{username} (ID: {uid})" for uid, username in users.items()])
+    await update.message.reply_text(f"Список участников:\n{user_list}")
+
 # Команда для выбора пользователя из списка
 async def choose_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
     if not users or len(users) < 2:
-        await update.message.reply_text("Нет других пользователей для общения.")
+        await update.message.reply_text("Список участников пуст.")
         logger.info(f"Пользователь {user_id} попытался выбрать собеседника, но список пуст.")
         return
 
@@ -81,6 +92,9 @@ async def handle_user_selection(update: Update, context: ContextTypes.DEFAULT_TY
         text=f"Вы выбрали пользователя {users[receiver_id]}! Напишите сообщение для отправки."
     )
     logger.info(f"Пользователь {sender_id} выбрал собеседника {receiver_id}.")
+
+    # Сохраняем информацию о выбранном собеседнике для последующей отправки сообщений
+    message_replies[sender_id] = receiver_id
 
 # Обработка текстовых сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -138,6 +152,7 @@ def main():
     # Регистрируем обработчики
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("choose_user", choose_user))
+    application.add_handler(CommandHandler("list", list_users))
     application.add_handler(CallbackQueryHandler(handle_user_selection))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(MessageHandler(filters.REPLY & ~filters.COMMAND, handle_reply))
