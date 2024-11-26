@@ -106,7 +106,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Проверяем, выбрал ли пользователь адресата
     if sender_id not in message_replies:
         await update.message.reply_text(
-            "Сначала выберите адресата с помощью команды /choose_user."
+            "Сначала выберите адресата с помощью кнопки 'Выбрать адресата'."
         )
         logger.warning(f"Пользователь {sender_id} отправил сообщение без выбора собеседника.")
         return
