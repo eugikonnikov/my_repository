@@ -47,40 +47,29 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Команда для отображения списка пользователей
 async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-
-    if not users:
-        await update.message.reply_text("Пока нет пользователей.")
-        return
-
-    user_list = "\n".join([f"{username} (ID: {uid})" for uid, username in users.items()])
+    user_list = "\n".join([f"{username} (ID: {uid})" for uid, username in users.items()]) if users else "Пока нет пользователей."
     await update.message.reply_text(f"Список участников:\n{user_list}")
 
 # Команда для выбора пользователя из списка
 async def choose_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-
-    # Проверка на наличие других пользователей
     if len(users) < 2:
         await update.message.reply_text("Список участников пуст.")
         logger.info(f"Пользователь {user_id} попытался выбрать собеседника, но список пуст.")
         return
 
-    # Создаем список кнопок для выбора собеседников
     keyboard = [
         [InlineKeyboardButton(username, callback_data=str(target_id))]
-        for target_id, username in users.items()
-        if target_id != user_id
+        for target_id, username in users.items() if target_id != user_id
     ]
 
-    if not keyboard:
+    if keyboard:
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text("Выберите пользователя для отправки сообщения:", reply_markup=reply_markup)
+        logger.info(f"Пользователю {user_id} предложен список собеседников.")
+    else:
         await update.message.reply_text("Нет доступных пользователей для отправки сообщений.")
         logger.info(f"Пользователь {user_id} не нашел доступных собеседников.")
-        return
-
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Выберите пользователя для отправки сообщения:", reply_markup=reply_markup)
-    logger.info(f"Пользователю {user_id} предложен список собеседников.")
 
 # Обработка выбора пользователя из списка
 async def handle_user_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -90,7 +79,6 @@ async def handle_user_selection(update: Update, context: ContextTypes.DEFAULT_TY
     sender_id = query.from_user.id
     receiver_id = int(query.data)
 
-    # Сохраняем информацию о выбранном собеседнике для последующей отправки сообщений
     message_replies[sender_id] = receiver_id
 
     await query.edit_message_text(
@@ -98,37 +86,45 @@ async def handle_user_selection(update: Update, context: ContextTypes.DEFAULT_TY
     )
     logger.info(f"Пользователь {sender_id} выбрал собеседника {receiver_id}.")
 
-# Обработка текстовых сообщений
+# Обработка текстовых сообщений (кнопки и текст)
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    sender_id = update.effective_user.id
+    user_id = update.effective_user.id
     message = update.message.text
 
-    # Проверяем, выбрал ли пользователь адресата
-    if sender_id not in message_replies:
-        await update.message.reply_text(
-            "Сначала выберите адресата с помощью кнопки 'Выбрать адресата'."
+    # Обработка кнопок (главное меню)
+    if message == "Список участников":
+        await list_users(update, context)
+    elif message == "Выбрать адресата":
+        await choose_user(update, context)
+    else:
+        # Проверяем, выбран ли собеседник
+        if user_id not in message_replies:
+            await update.message.reply_text("Сначала выберите адресата с помощью кнопки 'Выбрать адресата'.")
+            return
+
+        # Отправка сообщения
+        receiver_id = message_replies[user_id]
+        await context.bot.send_message(
+            chat_id=receiver_id,
+            text=f"Вам письмо от Тайного Санты: \n{message}\n\nВы можете ответить ему, и бот перенаправит ваш ответ обратно."
         )
-        logger.warning(f"Пользователь {sender_id} отправил сообщение без выбора собеседника.")
-        return
+        logger.info(f"Сообщение от пользователя {user_id} отправлено пользователю {receiver_id}. Текст: {message}")
 
-    receiver_id = message_replies[sender_id]
+        message_replies[receiver_id] = user_id  # Сохраняем информацию для ответов
+        await update.message.reply_text("Ваше письмо отправлено!")
 
-    # Отправляем письмо адресату
-    await context.bot.send_message(
-        chat_id=receiver_id,
-        text=f"Вам письмо от Тайного Санты: \n{message}\n\nВы можете ответить ему, и бот перенаправит ваш ответ обратно."
-    )
-    logger.info(f"Сообщение от пользователя {sender_id} отправлено пользователю {receiver_id}. Текст: {message}")
+# Основная функция
+def main():
+    # Создаем объект Application
+    application = Application.builder().token("7244231240:AAF058JkWuJPYtjIUySSIT3swUE8Dt_u_bE").build()
 
-    # Сохраняем информацию для ответов
-    message_replies[receiver_id] = sender_id  # Получатель становится отправителем в следующем чате
-    await update.message.reply_text("Ваше письмо отправлено!")
+    # Регистрируем обработчики
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))  # Обрабатываем и кнопки, и текст
+    application.add_handler(CallbackQueryHandler(handle_user_selection))
 
-# Обработка ответа от пользователя
-async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    sender_id = update.effective_user.id
-    message = update.message.text
+    # Запуск бота
+    application.run_polling()
 
-    # Проверяем, кому нужно отправить ответ
-    if sender_id not in message_replies:
-        await update.message.reply_t
+if __name__ == "__main__":
+    main()
