@@ -11,7 +11,6 @@ from telegram.ext import (
 
 # Настройка логирования
 logging.basicConfig(
-    filename="bot.log"
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
